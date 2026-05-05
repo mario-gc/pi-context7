@@ -1,6 +1,6 @@
 {
   "name": "@mario-gc/pi-context7",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Context7 integration for pi coding agent — fetch up-to-date library documentation and code examples",
   "license": "MIT",
   "keywords": [
