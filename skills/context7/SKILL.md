@@ -79,6 +79,5 @@ If `context7_get_context` returns insufficient or irrelevant results:
 - Always run `context7_search_library` before `context7_get_context` — you need a valid library ID
 - Pass the user's full question as `query` for better relevance
 - Prefer official/primary packages over community forks when multiple matches exist
-- An API key (`CONTEXT7_API_KEY`) is optional but provides higher rate limits
-- To set up an API key: get one at https://context7.com/dashboard, then `export CONTEXT7_API_KEY=ctx7sk-...`
+- If you encounter rate limits or quota errors, inform the user they can set `CONTEXT7_API_KEY` for higher limits. API keys are available at https://context7.com/dashboard.
 - Results are cached locally for reuse — similar queries may hit the cache automatically
