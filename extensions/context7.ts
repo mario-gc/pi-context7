@@ -257,10 +257,12 @@ export default function (pi: ExtensionAPI) {
         if (cached.source !== null) {
           // Cache hit
           results = ((cached.data as { results?: unknown[] })?.results ?? []) as unknown[];
-          if (cached.source === "stale") {
-            cacheNote = "\n[cached, may be outdated]";
+          if (cached.source === "exact") {
+            cacheNote = "\n[cache hit]";
           } else if (cached.source === "bm25") {
             cacheNote = "\n[semantic cache match]";
+          } else if (cached.source === "stale") {
+            cacheNote = "\n[cached, may be outdated]";
           }
         } else {
           // Cache miss — fetch from API
@@ -273,6 +275,7 @@ export default function (pi: ExtensionAPI) {
           results = raw.results ?? [];
           // Store in cache (fire-and-forget)
           cache.set("search", { libraryName: params.libraryName }, fetchParams, raw).catch(() => {});
+          cacheNote = "\n[fetched from API]";
         }
 
         if (results.length === 0) {
@@ -417,10 +420,12 @@ export default function (pi: ExtensionAPI) {
         if (cached.source !== null) {
           // Cache hit
           data = cached.data as Record<string, unknown>;
-          if (cached.source === "stale") {
-            cacheNote = "\n[cached, may be outdated]";
+          if (cached.source === "exact") {
+            cacheNote = "\n[cache hit]";
           } else if (cached.source === "bm25") {
             cacheNote = "\n[semantic cache match]";
+          } else if (cached.source === "stale") {
+            cacheNote = "\n[cached, may be outdated]";
           }
         } else {
           // Cache miss — fetch from API
@@ -434,6 +439,7 @@ export default function (pi: ExtensionAPI) {
           cache
             .set("context", { libraryId: params.libraryId }, fetchParams, data)
             .catch(() => {});
+          cacheNote = "\n[fetched from API]";
         }
 
         // Format output
@@ -458,19 +464,50 @@ export default function (pi: ExtensionAPI) {
             outputLines.push("");
 
             for (const snippet of codeSnippets) {
-              const title = snippet.title ?? "Code Example";
-              const lang = snippet.language ?? snippet.lang ?? "typescript";
-              const code = snippet.code ?? snippet.content ?? "";
-              const source = snippet.source
-                ? `Source: ${snippet.source}`
-                : "";
+              // Use codeTitle/codeDescription from the API, with fallbacks
+              const snippetTitle = (snippet.codeTitle ?? snippet.title ?? "Code Example") as string;
+              const snippetDesc = snippet.codeDescription as string | undefined;
 
-              outputLines.push(`**${title}** (${lang})`);
-              outputLines.push("```" + lang);
-              outputLines.push(String(code).trimEnd());
-              outputLines.push("```");
-              if (source) outputLines.push(source);
-              outputLines.push("");
+              // Use codeLanguage from the API, with fallback
+              const snippetLang = (snippet.codeLanguage ?? snippet.language ?? snippet.lang ?? "typescript") as string;
+
+              // codeList is an array of { language, code } from the API
+              const codeList = (snippet.codeList ?? []) as Array<Record<string, unknown>>;
+
+              // Source URL from the API (codeId) with fallbacks
+              const sourceUrl = (snippet.codeId ?? snippet.source ?? snippet.pageTitle) as string | undefined;
+
+              if (codeList.length > 0) {
+                // Each codeList item gets its own code block
+                outputLines.push(`**${snippetTitle}**`);
+                if (snippetDesc) outputLines.push(`> ${snippetDesc}`);
+                outputLines.push("");
+
+                for (const item of codeList) {
+                  const itemLang = (item.language ?? snippetLang) as string;
+                  const itemCode = (item.code ?? "") as string;
+                  if (itemCode) {
+                    outputLines.push("```" + itemLang);
+                    outputLines.push(String(itemCode).trimEnd());
+                    outputLines.push("```");
+                  }
+                }
+
+                if (sourceUrl) outputLines.push(`Source: ${sourceUrl}`);
+                outputLines.push("");
+              } else {
+                // Fallback: try top-level code property (alternate format)
+                const legacyCode = (snippet.code ?? snippet.content ?? "") as string;
+                if (legacyCode) {
+                  outputLines.push(`**${snippetTitle}** (${snippetLang})`);
+                  if (snippetDesc) outputLines.push(`> ${snippetDesc}`);
+                  outputLines.push("```" + snippetLang);
+                  outputLines.push(String(legacyCode).trimEnd());
+                  outputLines.push("```");
+                  if (sourceUrl) outputLines.push(`Source: ${sourceUrl}`);
+                  outputLines.push("");
+                }
+              }
             }
           }
 
