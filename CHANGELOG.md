@@ -7,14 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- 
-
-### Changed
-- 
-
 ### Fixed
-- 
+- Code snippet display in `context7_get_context`: now correctly renders `codeTitle`, `codeDescription`, `codeLanguage`, and `codeList[].code` from the API — no more empty code blocks
+- Missing cache source notifications: both tools now show `[cache hit]` for fresh exact matches and `[fetched from API]` for API fetches 
 
 ## [0.1.0] - 2026-05-05
 
