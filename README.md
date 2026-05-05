@@ -4,14 +4,20 @@ Context7 integration for pi coding agent. Fetch up-to-date library documentation
 
 ## Installation
 
-**Global install:**
+**Global install (npm):**
 ```bash
 pi install npm:@mario-gc/pi-context7
+```
+
+**Global install (GitHub):**
+```bash
+pi install git:github.com/mario-gc/pi-context7
 ```
 
 **Project install (adds to `.pi/settings.json`):**
 ```bash
 pi install -l npm:@mario-gc/pi-context7
+pi install -l git:github.com/mario-gc/pi-context7
 ```
 
 **Local development:**
