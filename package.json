@@ -1,25 +1,46 @@
 {
-  "name": "pi-context7",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "name": "@mario-gc/pi-context7",
+  "version": "0.1.0",
+  "description": "Context7 integration for pi coding agent — fetch up-to-date library documentation and code examples",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "context7",
+    "documentation",
+    "api-reference"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "files": [
+    "extensions/",
+    "skills/",
+    "README.md"
+  ],
+  "type": "commonjs",
+  "devDependencies": {
+    "@mariozechner/pi-ai": "^0.73.0",
+    "@mariozechner/pi-coding-agent": "^0.73.0",
+    "@types/node": "^25.6.0",
+    "typebox": "^1.1.37",
+    "typescript": "^6.0.3"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mario-gc/pi-context7.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/mario-gc/pi-context7/issues"
   },
-  "homepage": "https://github.com/mario-gc/pi-context7#readme",
-  "devDependencies": {
-    "@types/node": "^25.6.0",
-    "typescript": "^6.0.3"
-  }
+  "homepage": "https://github.com/mario-gc/pi-context7#readme"
 }
