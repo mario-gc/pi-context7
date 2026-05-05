@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+## [0.1.0] - 2026-05-05
+
+### Added
 - BM25-backed semantic cache for Context7 API responses with MD5 exact match, BM25 semantic lookup, atomic writes, eviction, and offline mode
 - `context7_search_library` tool — resolve library names to Context7 library IDs
 - `context7_get_context` tool — fetch documentation with code examples and research mode
