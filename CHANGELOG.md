@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+## [0.2.0] - 2026-06-19
+
+### Added
 - `CONTEXT7_CACHE_ROOT` environment variable override for cache directory (defaults to `~/.pi/agent/cache/context7`)
 - Unit tests for BM25 scoring and cache timing (`extensions/cache.test.ts`)
 - `npm test` and `npm run typecheck` scripts in `package.json`
