@@ -42,10 +42,67 @@ const MAX_CACHE_SIZE = 52_428_800; // 50 MB in bytes
 
 const BM25_K1 = 1.2;
 const BM25_B = 0.75;
-const BM25_CONSTANT_IDF = 1.5;
 
-const BM25_THRESHOLD_ONLINE = 0.7;
-const BM25_THRESHOLD_OFFLINE = 0.5;
+/**
+ * Minimum IDF floor to prevent small-corpus artifacts.
+ *
+ * With very few documents (N=1-3), the IDF smoothing formula can produce
+ * artificially low values for shared terms vs unique terms, distorting
+ * the self-match normalization. This floor ensures no term's IDF drops
+ * below a reasonable minimum.
+ */
+const BM25_IDF_MIN = 0.5;
+
+/**
+ * Minimum fraction of query terms that must appear in a document for it
+ * to be considered a valid match (prevents single-shared-term false positives).
+ * Must be strictly greater than this threshold to pass.
+ */
+const BM25_MIN_OVERLAP = 0.5;
+
+/**
+ * Minimum number of matching terms required regardless of overlap ratio.
+ * Prevents false matches when query has very few terms (2-3) and one happens
+ * to match by coincidence (e.g., "useState hook" vs "useEffect hook" sharing "hook").
+ */
+const BM25_MIN_MATCHING_TERMS = 2;
+
+/**
+ * BM25 score thresholds for cache hits.
+ *
+ * Combined with the IDF floor (0.5) and minimum overlap check (50%),
+ * these thresholds ensure meaningful term matches while rejecting
+ * false positives from stopwords alone.
+ *
+ * With IDF floor=0.5 and k1=1.2, each matching term contributes
+ * roughly 0.3-0.7 to the score. A threshold of 0.5 requires at
+ * least one solid term match; 0.3 is more permissive for offline mode.
+ */
+const BM25_THRESHOLD_ONLINE = 0.5;
+const BM25_THRESHOLD_OFFLINE = 0.3;
+
+/**
+ * English stopword set applied before BM25 scoring.
+ *
+ * Contains only structural English words and very generic verbs
+ * ("how", "to", "for", "use", "set", etc.). Domain-specific terms
+ * ("hook", "middleware", "auth", "router", "component", "state") are
+ * intentionally NOT included — they carry the semantic meaning BM25
+ * must discriminate on.
+ */
+const STOPWORDS = new Set([
+  "a", "an", "the", "and", "or", "but", "is", "are", "was", "were",
+  "be", "been", "being", "have", "has", "had", "do", "does", "did",
+  "will", "would", "could", "should", "may", "might", "must", "can",
+  "how", "to", "for", "in", "on", "at", "by", "with", "from", "of",
+  "as", "into", "about", "than", "then", "so", "if", "because",
+  "what", "which", "who", "when", "where", "why", "this", "that",
+  "these", "those", "i", "you", "he", "she", "it", "we", "they",
+  "my", "your", "his", "her", "its", "our", "their",
+  "use", "using", "used", "get", "getting", "set", "setting",
+  "up", "down", "out", "over", "under", "again",
+  "not", "no", "nor", "too", "very", "just", "also", "only",
+]);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,7 +120,7 @@ export interface CacheResult {
   entry?: CacheEntry;
 }
 
-interface ManifestEntry {
+export interface ManifestEntry {
   scope: Record<string, string>;
   query: string;
   hash: string;
@@ -154,8 +211,9 @@ function extractQueryText(params: Record<string, string | boolean | undefined>):
  * Tokenize text for BM25 scoring.
  *
  * Lowercases, splits on non-alphanumeric characters, filters empty tokens.
+ * The raw token list is used as the basis for stopword-aware scoring.
  */
-function tokenize(text: string): string[] {
+export function tokenize(text: string): string[] {
   return text
     .toLowerCase()
     .split(/[^a-z0-9]+/)
@@ -163,11 +221,61 @@ function tokenize(text: string): string[] {
 }
 
 /**
- * Compute BM25 score for a single query/document pair.
+ * Tokenize text and remove English stopwords before BM25 scoring.
  *
- * Implements the simplified BM25 formula described in the spec.
+ * Stopwords contribute no discriminating signal — with a proper
+ * corpus-frequency IDF they would score near zero anyway, but filtering
+ * them up front keeps the token lists short and the self-match
+ * normalization meaningful (the self-score reflects only terms that
+ * actually carry semantic weight).
  */
-function bm25Score(queryTokens: string[], docTokens: string[], avgDocLen: number): number {
+export function tokenizeForScoring(text: string): string[] {
+  return tokenize(text).filter((t) => !STOPWORDS.has(t));
+}
+
+/**
+ * Compute the BM25+ smoothed inverse document frequency for a term.
+ *
+ *   IDF = ln(1 + (N - n + 0.5) / (n + 0.5))
+ *
+ * where N = total candidate documents and n = documents whose token list
+ * contains the term. The `+1` smoothing prevents negative IDF values for
+ * terms that appear in every document, which would otherwise subtract
+ * from the score and destabilize the self-match normalization.
+ */
+export function computeIdf(term: string, docTokenLists: string[][]): number {
+  const N = docTokenLists.length;
+  const n = docTokenLists.filter((tokens) => tokens.includes(term)).length;
+  const raw = Math.log(1 + (N - n + 0.5) / (n + 0.5));
+  return Math.max(raw, BM25_IDF_MIN);
+}
+
+/**
+ * Build an IDF map for the (de-duplicated) query terms against a corpus.
+ */
+export function buildIdfMap(queryTokens: string[], docTokenLists: string[][]): Map<string, number> {
+  const idf = new Map<string, number>();
+  for (const term of new Set(queryTokens)) {
+    idf.set(term, computeIdf(term, docTokenLists));
+  }
+  return idf;
+}
+
+/**
+ * Compute the raw (unnormalized) BM25 score for a single query/document pair.
+ *
+ *   score += tf * idf
+ *
+ * where tf = (freq * (k1 + 1)) / (freq + k1 * (1 - b + b * (docLen / avgDocLen)))
+ * and idf is looked up from the precomputed `idfMap`. Terms missing from the
+ * map are treated as having zero IDF.
+ */
+export function bm25Score(
+  queryTokens: string[],
+  docTokens: string[],
+  avgDocLen: number,
+  idfMap: Map<string, number>,
+): number {
   const docLen = docTokens.length;
   const avgLen = avgDocLen > 0 ? avgDocLen : 1;
 
@@ -178,7 +286,7 @@ function bm25Score(queryTokens: string[], docTokens: string[], avgDocLen: number
       const tf =
         (freq * (BM25_K1 + 1)) /
         (freq + BM25_K1 * (1 - BM25_B + BM25_B * (docLen / avgLen)));
-      score += tf * BM25_CONSTANT_IDF;
+      score += tf * (idfMap.get(term) ?? 0);
     }
   }
   return score;
@@ -187,26 +295,51 @@ function bm25Score(queryTokens: string[], docTokens: string[], avgDocLen: number
 /**
  * Run BM25 against a list of manifest entries and return the best match.
  *
+ * Scoring pipeline:
+ * 1. Tokenize the query and each candidate query with stopword filtering.
+ * 2. Filter out documents with insufficient term overlap (< 50% of query terms).
+ * 3. Compute a corpus-frequency IDF for each query term (with floor).
+ * 4. Score every remaining candidate and keep the highest.
+ * 5. Return the best entry only if its raw score meets `threshold`.
+ *
+ * The combination of overlap check + IDF floor + raw score threshold
+ * prevents false positives from stopwords while correctly matching
+ * queries that share meaningful domain terms.
+ *
  * @returns The best matching entry, or null if none reach the threshold.
  */
-function bm25Find(query: string, entries: ManifestEntry[], threshold: number): ManifestEntry | null {
-  const queryTokens = tokenize(query);
+export function bm25Find(query: string, entries: ManifestEntry[], threshold: number): ManifestEntry | null {
+  const queryTokens = tokenizeForScoring(query);
   if (queryTokens.length === 0) return null;
 
-  const docTokenLists = entries.map((e) => tokenize(e.query));
+  const docTokenLists = entries.map((e) => tokenizeForScoring(e.query));
   const avgDocLen =
     docTokenLists.reduce((sum, t) => sum + t.length, 0) / Math.max(entries.length, 1);
+
+  const idfMap = buildIdfMap(queryTokens, docTokenLists);
 
   let bestScore = 0;
   let bestEntry: ManifestEntry | null = null;
 
   for (let i = 0; i < entries.length; i++) {
-    const score = bm25Score(queryTokens, docTokenLists[i], avgDocLen);
+    const docTokens = docTokenLists[i];
+
+    // Check term overlap: must have both sufficient ratio AND minimum count.
+    // This prevents single-shared-term false positives (e.g., "useState hook"
+    // vs "useEffect hook" sharing only "hook").
+    const matchingTerms = queryTokens.filter((t) => docTokens.includes(t)).length;
+    const overlapRatio = matchingTerms / queryTokens.length;
+    if (overlapRatio <= BM25_MIN_OVERLAP || matchingTerms < BM25_MIN_MATCHING_TERMS) continue;
+
+    const score = bm25Score(queryTokens, docTokens, avgDocLen, idfMap);
     if (score > bestScore) {
       bestScore = score;
       bestEntry = entries[i];
     }
   }
+
+  // Edge case: if bestScore is zero, no terms matched.
+  if (bestScore <= 0) return null;
 
   return bestScore >= threshold ? bestEntry : null;
 }
