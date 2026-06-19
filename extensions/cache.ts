@@ -24,7 +24,17 @@ import { homedir } from "node:os";
 // Constants
 // ---------------------------------------------------------------------------
 
-const CACHE_ROOT = join(homedir(), ".pi", "agent", "cache", "context7");
+/**
+ * Resolve the cache root directory.
+ *
+ * Reads `CONTEXT7_CACHE_ROOT` at call time (not import time) so that tests
+ * can set the env var before creating a cache instance.
+ */
+function getCacheRoot(): string {
+  return process.env.CONTEXT7_CACHE_ROOT
+    ? join(process.env.CONTEXT7_CACHE_ROOT, "context7")
+    : join(homedir(), ".pi", "agent", "cache", "context7");
+}
 
 /** Subdirectory name for each endpoint. */
 const DIR_NAMES: Record<string, string> = {
@@ -349,15 +359,15 @@ export function bm25Find(query: string, entries: ManifestEntry[], threshold: num
 // ---------------------------------------------------------------------------
 
 function getEndpointDir(endpoint: "search" | "context"): string {
-  return join(CACHE_ROOT, DIR_NAMES[endpoint]);
+  return join(getCacheRoot(), DIR_NAMES[endpoint]);
 }
 
 function getManifestPath(endpoint: "search" | "context"): string {
-  return join(CACHE_ROOT, `${DIR_NAMES[endpoint]}.json`);
+  return join(getCacheRoot(), `${DIR_NAMES[endpoint]}.json`);
 }
 
 function getManifestTempPath(endpoint: "search" | "context"): string {
-  return join(CACHE_ROOT, `${DIR_NAMES[endpoint]}.json.tmp`);
+  return join(getCacheRoot(), `${DIR_NAMES[endpoint]}.json.tmp`);
 }
 
 function getEntryPath(endpoint: "search" | "context", hash: string): string {
@@ -454,8 +464,8 @@ async function init(): Promise<void> {
   if (initialized) return;
 
   // 1. Ensure directories exist
-  await mkdir(join(CACHE_ROOT, "libraries"), { recursive: true });
-  await mkdir(join(CACHE_ROOT, "contexts"), { recursive: true });
+  await mkdir(join(getCacheRoot(), "libraries"), { recursive: true });
+  await mkdir(join(getCacheRoot(), "contexts"), { recursive: true });
 
   // 2. Load manifests
   for (const endpoint of ["search", "context"] as const) {
@@ -492,11 +502,11 @@ async function init(): Promise<void> {
 
   // Also clean manifest .tmp files from the root cache dir
   try {
-    const rootFiles = await readdir(CACHE_ROOT);
+    const rootFiles = await readdir(getCacheRoot());
     for (const file of rootFiles) {
       if (file.endsWith(".tmp")) {
         try {
-          await unlink(join(CACHE_ROOT, file));
+          await unlink(join(getCacheRoot(), file));
         } catch {
           // ignore
         }

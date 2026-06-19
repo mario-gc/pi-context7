@@ -214,6 +214,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "context7_search_library",
     label: "Context7 Search Library",
+    executionMode: "sequential",
     description:
       "Search Context7 for libraries by name. Returns matching libraries with IDs, descriptions, " +
       "trust scores, and available versions. Use this first to resolve a library name to a " +
@@ -277,8 +278,12 @@ export default function (pi: ExtensionAPI) {
             signal,
           );
           results = raw.results ?? [];
-          // Store in cache (fire-and-forget)
-          cache.set("search", { libraryName: params.libraryName }, fetchParams, raw).catch(() => {});
+          // Store in cache (await to guarantee manifest is updated before returning)
+          await cache
+            .set("search", { libraryName: params.libraryName }, fetchParams, raw)
+            .catch((err) => {
+              console.error("[context7] cache write failed:", err);
+            });
           cacheNote = "\n[fetched from API]";
         }
 
@@ -407,6 +412,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "context7_get_context",
     label: "Context7 Get Context",
+    executionMode: "sequential",
     description:
       "Get up-to-date documentation context and code examples for a library from Context7. " +
       "Requires a libraryId from context7_search_library (format: /owner/repo or /owner/repo@version). " +
@@ -489,10 +495,12 @@ export default function (pi: ExtensionAPI) {
             currentApiKey,
             signal,
           );
-          // Store in cache (fire-and-forget)
-          cache
+          // Store in cache (await to guarantee manifest is updated before returning)
+          await cache
             .set("context", { libraryId: params.libraryId }, fetchParams, data)
-            .catch(() => {});
+            .catch((err) => {
+              console.error("[context7] cache write failed:", err);
+            });
           cacheNote = "\n[fetched from API]";
         }
 

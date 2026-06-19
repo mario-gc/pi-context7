@@ -8,14 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 
+- `CONTEXT7_CACHE_ROOT` environment variable override for cache directory (defaults to `~/.pi/agent/cache/context7`)
+- Unit tests for BM25 scoring and cache timing (`extensions/cache.test.ts`)
+- `npm test` and `npm run typecheck` scripts in `package.json`
 
 ### Changed
 - Library auto-ranking weights updated: Stars 60% (was 40%), Trust 25% (was 35%), Benchmark 15% (was 25%). Stars is now the dominant signal so popular libraries rank first unless they have notably poor documentation quality.
 - Extracted `computeQualityScore` and weight constants to `extensions/ranking.ts` for unit testability
 
 ### Fixed
-- 
+- Cache write timing: `cache.set` is now awaited (was fire-and-forget), preventing BM25 cache misses for rapid sequential queries
+- Tool execution mode set to `sequential` for both context7 tools, preventing parallel cache misses
+- Cache write errors now logged via `console.error` instead of silently swallowed
 
 ## [0.1.2] - 2026-06-19
 
