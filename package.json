@@ -3,6 +3,10 @@
   "version": "0.1.2",
   "description": "Context7 integration for pi coding agent — fetch up-to-date library documentation and code examples",
   "license": "MIT",
+  "scripts": {
+    "test": "node --test extensions/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
   "keywords": [
     "pi-package",
     "context7",
