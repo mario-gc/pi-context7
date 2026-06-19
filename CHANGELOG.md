@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 
 
 ### Changed
-- 
+- Library auto-ranking weights updated: Stars 60% (was 40%), Trust 25% (was 35%), Benchmark 15% (was 25%). Stars is now the dominant signal so popular libraries rank first unless they have notably poor documentation quality.
+- Extracted `computeQualityScore` and weight constants to `extensions/ranking.ts` for unit testability
 
 ### Fixed
 - 

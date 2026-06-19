@@ -15,6 +15,10 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createCache, type CacheModule } from "./cache.js";
+import {
+  computeQualityScore,
+  getStars,
+} from "./ranking.js";
 
 export default function (pi: ExtensionAPI) {
   let cache: CacheModule;
@@ -293,33 +297,8 @@ export default function (pi: ExtensionAPI) {
         // -----------------------------------------------------------------------
         // Library auto-ranking: filter non-finalized, compute composite quality
         // score, sort, and show top 3 with a Recommended marker.
+        // Weights and scoring logic live in ranking.ts (imported at module top).
         // -----------------------------------------------------------------------
-
-        const WEIGHT_STARS = 0.4;
-        const WEIGHT_TRUST = 0.35;
-        const WEIGHT_BENCHMARK = 0.25;
-
-        function computeQualityScore(
-          lib: Record<string, unknown>,
-          maxStars: number,
-        ): number {
-          const stars = ((lib.stars ?? lib.githubStars ?? lib.github_stars ?? 0) as number) | 0;
-          const trust = ((lib.trustScore ?? lib.trust_score ?? 0) as number) | 0;
-          const benchmark = ((lib.benchmarkScore ?? lib.benchmark_score ?? 0) as number) | 0;
-
-          // Log-normalize stars: log(stars + 1) / log(maxStars + 1)
-          const starsNorm =
-            maxStars > 0 ? Math.log(stars + 1) / Math.log(maxStars + 1) : 0;
-          // Linear normalize trust (0-10) and benchmark (0-100)
-          const trustNorm = trust / 10;
-          const benchmarkNorm = benchmark / 100;
-
-          return (
-            WEIGHT_STARS * starsNorm +
-            WEIGHT_TRUST * trustNorm +
-            WEIGHT_BENCHMARK * benchmarkNorm
-          );
-        }
 
         // Step 1 — Filter non-finalized libraries
         const finalized = results.filter((lib) => {
@@ -344,11 +323,7 @@ export default function (pi: ExtensionAPI) {
         // Step 2 — Compute maxStars across the finalized results
         const maxStars = Math.max(
           ...finalized.map(
-            (lib) =>
-              (((lib as Record<string, unknown>).stars ??
-                (lib as Record<string, unknown>).githubStars ??
-                (lib as Record<string, unknown>).github_stars ??
-                0) as number) | 0,
+            (lib) => getStars(lib as Record<string, unknown>),
           ),
           0,
         );
