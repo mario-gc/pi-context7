@@ -28,9 +28,9 @@ Call `context7_search_library` with:
 ### Step 2: Select the Best Match
 
 Results are automatically ranked by a composite quality score:
-- **Stars (40%)** — log-normalized so smaller libraries aren't drowned out
-- **Trust score (35%)** — source reputation (0–10)
-- **Benchmark score (25%)** — documentation quality (0–100)
+- **Stars (60%)** — log-normalized so smaller libraries aren't drowned out
+- **Trust score (25%)** — source reputation (0–10)
+- **Benchmark score (15%)** — documentation quality (0–100)
 
 Only the top 3 results are shown, with the best match marked as ⭐ Recommended.
 Non-finalized libraries (still processing) are filtered out automatically.

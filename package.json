@@ -9,6 +9,10 @@
     "documentation",
     "api-reference"
   ],
+  "scripts": {
+    "test": "node --test extensions/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
   "pi": {
     "extensions": [
       "./extensions/context7.ts"
