@@ -16,6 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 
 
+## [0.1.2] - 2026-06-19
+
+### Added
+- Library auto-ranking with composite quality score (Stars 40% + Trust 35% + Benchmark 25%)
+- Non-finalized libraries filtered from search results
+- Top 3 results shown with Recommended marker
+- Library Rules section in `context7_get_context` output when rules are present
+
+### Changed
+- BM25 cache scoring uses corpus-frequency IDF instead of constant value
+- English stopwords filtered before BM25 scoring
+- BM25 thresholds changed to raw scores with IDF floor and term overlap checks
+- `infoSnippets` uses breadcrumb as title and pageId as source link
+- SKILL.md documents automatic ranking and updated retry strategy
+
+### Fixed
+- False cache hits from common English words dominating BM25 scores
+- `infoSnippets` rendering as "Info" instead of using breadcrumb field
+- Removed unused `researchMode` parameter from `context7_get_context`
+
 ## [0.1.1] - 2026-05-05
 
 ### Fixed
