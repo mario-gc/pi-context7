@@ -1,6 +1,6 @@
 {
   "name": "@mario-gc/pi-context7",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Context7 integration for pi coding agent — fetch up-to-date library documentation and code examples",
   "license": "MIT",
   "scripts": {
@@ -13,10 +13,6 @@
     "documentation",
     "api-reference"
   ],
-  "scripts": {
-    "test": "node --test extensions/*.test.ts",
-    "typecheck": "tsc --noEmit"
-  },
   "pi": {
     "extensions": [
       "./extensions/context7.ts"
