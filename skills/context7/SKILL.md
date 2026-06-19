@@ -27,11 +27,17 @@ Call `context7_search_library` with:
 
 ### Step 2: Select the Best Match
 
-From the results, choose based on:
-- Exact or closest name match to what the user asked for
-- Higher benchmark scores (out of 100) indicate better documentation quality
-- Higher trust scores (out of 10) indicate more authoritative sources
-- If the user mentioned a version (e.g., "React 19"), prefer version-specific IDs from the `versions` list
+Results are automatically ranked by a composite quality score:
+- **Stars (40%)** — GitHub popularity, log-normalized so smaller libraries aren't drowned out
+- **Trust score (35%)** — source reputation (0–10)
+- **Benchmark score (25%)** — documentation quality (0–100)
+
+Only the top 3 results are shown, with the best match marked as ⭐ Recommended.
+Non-finalized libraries (still processing) are filtered out automatically.
+
+**You do not need to manually select a library** — use the Recommended ID
+for `context7_get_context`. If the recommended library doesn't match what
+you need, use one of the other shown results or refine your search.
 
 ### Step 3: Fetch Documentation
 
@@ -40,7 +46,6 @@ Call `context7_get_context` with:
 - `libraryId`: The selected Context7 library ID (e.g., `/vercel/next.js`)
 - `query`: The user's specific question — be descriptive
 - `type`: Use "json" for structured snippets (default), "txt" for plain text
-- `researchMode`: Only use this as a **retry** if the initial results are insufficient
 
 ### Step 4: Use the Documentation
 
@@ -48,7 +53,7 @@ Incorporate the fetched documentation into your response:
 - Answer the user's question using current, accurate information
 - Include relevant code examples from the docs
 - Cite the library version when relevant
-- Reference the source page/breadcrumb when helpful (from `pageTitle` or `breadcrumb`)
+- Reference the source page/breadcrumb when helpful (from `breadcrumb` or `pageId`)
 
 ## Query Quality
 
@@ -70,8 +75,8 @@ When users mention specific versions:
 ## Retry Strategy
 
 If `context7_get_context` returns insufficient or irrelevant results:
-1. Retry with `researchMode: true` — this uses deeper agentic search
-2. If still insufficient, consider refining the query with more specific terms
+1. Refine your query with more specific terms — include the exact API name, pattern, or feature
+2. Try a different library ID from the search results if multiple were shown
 3. Do not silently fall back to training data without telling the user
 
 ## Guidelines

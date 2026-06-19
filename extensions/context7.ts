@@ -290,37 +290,125 @@ export default function (pi: ExtensionAPI) {
           };
         }
 
-        // Format output
-        const lines: string[] = [
-          `Found ${results.length} libraries for "${params.libraryName}":`,
-        ];
+        // -----------------------------------------------------------------------
+        // Library auto-ranking: filter non-finalized, compute composite quality
+        // score, sort, and show top 3 with a Recommended marker.
+        // -----------------------------------------------------------------------
 
-        for (let i = 0; i < results.length; i++) {
-          const lib = results[i] as Record<string, unknown>;
+        const WEIGHT_STARS = 0.4;
+        const WEIGHT_TRUST = 0.35;
+        const WEIGHT_BENCHMARK = 0.25;
+
+        function computeQualityScore(
+          lib: Record<string, unknown>,
+          maxStars: number,
+        ): number {
+          const stars = ((lib.stars ?? lib.githubStars ?? lib.github_stars ?? 0) as number) | 0;
+          const trust = ((lib.trustScore ?? lib.trust_score ?? 0) as number) | 0;
+          const benchmark = ((lib.benchmarkScore ?? lib.benchmark_score ?? 0) as number) | 0;
+
+          // Log-normalize stars: log(stars + 1) / log(maxStars + 1)
+          const starsNorm =
+            maxStars > 0 ? Math.log(stars + 1) / Math.log(maxStars + 1) : 0;
+          // Linear normalize trust (0-10) and benchmark (0-100)
+          const trustNorm = trust / 10;
+          const benchmarkNorm = benchmark / 100;
+
+          return (
+            WEIGHT_STARS * starsNorm +
+            WEIGHT_TRUST * trustNorm +
+            WEIGHT_BENCHMARK * benchmarkNorm
+          );
+        }
+
+        // Step 1 — Filter non-finalized libraries
+        const finalized = results.filter((lib) => {
+          const state = (lib as Record<string, unknown>).state;
+          return state === "finalized" || state === undefined; // keep if finalized or field missing
+        });
+
+        if (finalized.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  `Found ${results.length} libraries for "${params.libraryName}" but none are finalized yet. ` +
+                  "Try again later or use a different search term.",
+              },
+            ],
+            details: { results },
+          };
+        }
+
+        // Step 2 — Compute maxStars across the finalized results
+        const maxStars = Math.max(
+          ...finalized.map(
+            (lib) =>
+              (((lib as Record<string, unknown>).stars ??
+                (lib as Record<string, unknown>).githubStars ??
+                (lib as Record<string, unknown>).github_stars ??
+                0) as number) | 0,
+          ),
+          0,
+        );
+
+        // Step 3 — Score, sort, and slice top 3
+        const scored = finalized
+          .map((lib) => ({
+            lib,
+            score: computeQualityScore(lib as Record<string, unknown>, maxStars),
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3);
+
+        // Step 4 — Format output
+        const lines: string[] = [];
+
+        if (results.length > 3) {
+          lines.push(
+            `Found ${results.length} libraries for "${params.libraryName}" — showing top ${scored.length} by quality:`,
+          );
+        } else {
+          lines.push(
+            `Found ${results.length} ${results.length === 1 ? "library" : "libraries"} for "${params.libraryName}":`,
+          );
+        }
+        lines.push("");
+
+        for (let i = 0; i < scored.length; i++) {
+          const lib = scored[i].lib as Record<string, unknown>;
           const idx = i + 1;
-          const id = lib.id ?? "";
-          const title = lib.title ?? lib.name ?? "Unknown";
-          const description = lib.description ?? "";
+          const id = (lib.id ?? "") as string;
+          const title = (lib.title ?? lib.name ?? "Unknown") as string;
+          const description = (lib.description ?? "") as string;
           const versions = Array.isArray(lib.versions)
             ? (lib.versions as string[]).join(", ")
             : "";
           const trust = lib.trustScore ?? lib.trust_score ?? "?";
           const bench = lib.benchmarkScore ?? lib.benchmark_score ?? "?";
-          const stars = lib.stars ?? lib.githubStars ?? lib.github_stars ?? "?";
+          const stars = ((lib.stars ?? lib.githubStars ?? lib.github_stars ?? 0) as number) | 0;
 
-          lines.push("");
-          lines.push(`${idx}. ${title} — ${id}`);
+          const marker = i === 0 ? "⭐ Recommended: " : `${idx}. `;
+          lines.push(`${marker}${title} — ${id}`);
           lines.push(`   ${description}`);
           if (versions) lines.push(`   Versions: ${versions}`);
-          lines.push(`   Trust: ${trust}/10 · Benchmark: ${bench}/100 · ⭐ ${stars}`);
+          lines.push(
+            `   Stars: ${stars.toLocaleString()} · Trust: ${trust}/10 · Benchmark: ${bench}/100`,
+          );
+          if (i === 0) {
+            lines.push(`   → Use this ID with context7_get_context`);
+          }
+          lines.push("");
         }
 
-        lines.push("");
-        lines.push(
-          "Use the library ID (e.g., " +
-            (results[0] as Record<string, unknown>)?.id +
-            ") with context7_get_context.",
-        );
+        // Always suggest the top result's ID
+        const topId = (scored[0]?.lib as Record<string, unknown>)?.id as
+          | string
+          | undefined;
+        if (topId) {
+          lines.push(`Use ${topId} with context7_get_context.`);
+        }
         if (cacheNote) lines.push(cacheNote);
 
         return {
@@ -351,7 +439,6 @@ export default function (pi: ExtensionAPI) {
     promptSnippet: "Retrieve documentation and code examples for a Context7 library ID",
     promptGuidelines: [
       "Use context7_get_context for library documentation instead of relying on training data. Training data may be outdated.",
-      "When context7_get_context returns insufficient results, retry with researchMode: true for a deeper search.",
       "Always run context7_search_library first to resolve library names to Context7 IDs before calling context7_get_context.",
     ],
     parameters: Type.Object({
@@ -370,14 +457,6 @@ export default function (pi: ExtensionAPI) {
           description:
             "Response format. 'json' returns structured snippets, 'txt' returns raw text.",
           default: "json",
-        }),
-      ),
-      researchMode: Type.Optional(
-        Type.Boolean({
-          description:
-            "When true, use deeper agentic research (sandboxed agents, live web search). " +
-            "Slower but higher quality. Use as retry if default results are insufficient.",
-          default: false,
         }),
       ),
     }),
@@ -405,7 +484,7 @@ export default function (pi: ExtensionAPI) {
           query: params.query,
           type: responseType,
         };
-        if (params.researchMode) fetchParams.researchMode = true;
+
 
         // Try cache
         const cached = await cache.get(
@@ -520,21 +599,35 @@ export default function (pi: ExtensionAPI) {
             outputLines.push("");
 
             for (const snippet of infoSnippets) {
-              const title = snippet.title ?? "Info";
-              const snippetText =
-                (snippet.content as string) ??
-                (snippet.text as string) ??
-                (snippet.description as string) ??
-                "";
-              outputLines.push(`**${title}** — ${snippetText}`);
+              const breadcrumb = (snippet.breadcrumb as string) ?? "Documentation";
+              const snippetContent = (snippet.content as string) ?? "";
+              const pageId = snippet.pageId as string | undefined;
+
+              outputLines.push(`**${breadcrumb}**`);
+              if (snippetContent) outputLines.push(snippetContent);
+              if (pageId) outputLines.push(`Source: ${pageId}`);
               outputLines.push("");
             }
           }
 
-          // Research mode note
-          if (params.researchMode) {
-            outputLines.push("[Research mode — deeper analysis]");
-            outputLines.push("");
+          // Library rules (global, libraryOwn, libraryTeam)
+          const rules = data?.rules as
+            | Record<string, string[]>
+            | undefined;
+          if (rules) {
+            const allRules: string[] = [];
+            if (Array.isArray(rules.global)) allRules.push(...rules.global);
+            if (Array.isArray(rules.libraryOwn)) allRules.push(...rules.libraryOwn);
+            if (Array.isArray(rules.libraryTeam)) allRules.push(...rules.libraryTeam);
+
+            if (allRules.length > 0) {
+              outputLines.push("### Library Rules");
+              outputLines.push("");
+              for (const rule of allRules) {
+                outputLines.push(`- ${rule}`);
+              }
+              outputLines.push("");
+            }
           }
         }
 
